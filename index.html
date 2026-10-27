@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Polyglot Watchlist — Proof of Concept</title>
+<meta name="description" content="Interactive proof of concept for a research-only multilingual name-matching and human-review prototype.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Project 1 · Proof of concept</p>
+    <h1>Polyglot Watchlist</h1>
+    <p class="lede">Find possible matches for a name across scripts and spellings, then let a <strong>human</strong> decide. Try it below — everything runs in your browser on fictional data.</p>
+    <div class="notice" role="note">Research prototype. Results are <em>possible record matches</em> for human review — never findings of identity, wrongdoing or sanctions status. Scores are uncalibrated similarity, not probabilities.</div>
+    <nav class="pills">
+      <a href="#demo">Try it</a><a href="#how">How it works</a><a href="#review">Human review &amp; audit</a><a href="#results">Results</a><a href="#arch">Architecture</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section id="demo">
+  <h2>1 · Screen a name</h2>
+  <p class="muted">Type a name, or pick an example. The demo compares it with 22 fictional reference records written in Latin, Cyrillic and Arabic script.</p>
+  <div class="card">
+    <div class="row">
+      <input id="q" type="text" maxlength="200" autocomplete="off" placeholder="e.g. Lumo Vespar" aria-label="Name to screen">
+      <select id="method" aria-label="Matching method">
+        <option value="hybrid">Hybrid (spelling + transliteration)</option>
+        <option value="lev">Spelling only (edit distance)</option>
+        <option value="translit">Transliterate to Latin, then compare</option>
+      </select>
+    </div>
+    <div class="chips" id="examples" aria-label="Examples"></div>
+    <div id="norm" class="muted small"></div>
+    <div id="ambig" class="warn hidden"></div>
+    <table class="results" aria-live="polite">
+      <thead><tr><th>#</th><th>Record</th><th>Best matching alias</th><th class="w">Similarity</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</section>
+
+<section id="how">
+  <h2>2 · How a search flows</h2>
+  <div class="card svgcard">
+    <svg viewBox="0 0 960 230" role="img" aria-label="Pipeline: name, normalise, retrieve, evidence packet, human review, explanation and audit">
+      <defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0L10,5L0,10z" class="mk"/></marker></defs>
+      <g class="step" data-tip="Any script: Latin, Cyrillic, Arabic, Han…"><rect x="10" y="30" width="130" height="70" rx="12" class="b0"/><text x="75" y="62" class="t">Name in</text><text x="75" y="82" class="s">any script</text></g>
+      <g class="step"><rect x="170" y="30" width="150" height="70" rx="12" class="b1"/><text x="245" y="58" class="t">Normalise</text><text x="245" y="78" class="s">Unicode · case · spaces</text><text x="245" y="93" class="s">keeps the original</text></g>
+      <g class="step"><rect x="350" y="30" width="170" height="70" rx="12" class="b1"/><text x="435" y="58" class="t">Retrieve</text><text x="435" y="78" class="s">spelling · sound ·</text><text x="435" y="93" class="s">meaning (embeddings)</text></g>
+      <g class="step"><rect x="550" y="30" width="160" height="70" rx="12" class="b1"/><text x="630" y="58" class="t">Evidence packet</text><text x="630" y="78" class="s">ranked records,</text><text x="630" y="93" class="s">sources, prior notes</text></g>
+      <g class="step"><rect x="740" y="30" width="210" height="70" rx="12" class="bh"/><text x="845" y="58" class="t">Human review</text><text x="845" y="78" class="s">workflow pauses here</text><text x="845" y="93" class="s">3 allowed outcomes</text></g>
+      <path d="M140,65H168" class="ar"/><path d="M320,65H348" class="ar"/><path d="M520,65H548" class="ar"/><path d="M710,65H738" class="ar"/>
+      <g class="step"><rect x="550" y="150" width="170" height="60" rx="12" class="bk"/><text x="635" y="177" class="t">Explanation</text><text x="635" y="196" class="s">only from evidence</text></g>
+      <g class="step"><rect x="760" y="150" width="190" height="60" rx="12" class="bk"/><text x="855" y="177" class="t">Audit log + memory</text><text x="855" y="196" class="s">hash-chained</text></g>
+      <path d="M845,100V125H635V148" class="ar"/><path d="M720,180H758" class="ar"/>
+    </svg>
+  </div>
+  <div class="grid3">
+    <div class="card"><h3>Many ways to compare</h3><p>Exact match, edit distance (RapidFuzz), sound-alike codes, transliteration to Latin, and a multilingual embedding model (E5). A hybrid mode fuses their ranked lists.</p></div>
+    <div class="card"><h3>Same name ≠ same entity</h3><p>Two different records can share one name. The system shows both and lets a person decide — it never merges or “clears” on its own.</p></div>
+    <div class="card"><h3>Built to survive crashes</h3><p>Every step is checkpointed. A crash mid-review resumes without losing evidence or re-running the search.</p></div>
+  </div>
+</section>
+
+<section id="review">
+  <h2>3 · Human review &amp; tamper-evident audit</h2>
+  <p class="muted">Screen a name above, then record a review here. Each event is chained to the previous one with SHA-256 — try tampering with an entry and re-verifying.</p>
+  <div class="grid2">
+    <div class="card">
+      <h3>Review form</h3>
+      <div id="reviewCase" class="muted small">Screen a name first.</div>
+      <fieldset id="outcomes" disabled>
+        <legend class="small muted">Outcome (choose deliberately)</legend>
+        <label><input type="radio" name="o" value="candidate_for_follow_up"> <b>candidate_for_follow_up</b> — one listed record deserves follow-up (not an identity finding)</label>
+        <label><input type="radio" name="o" value="none_selected"> <b>none_selected</b> — no record selected (<em>not</em> a clearance)</label>
+        <label><input type="radio" name="o" value="unresolved"> <b>unresolved</b> — cannot decide from this evidence</label>
+        <select id="cand" class="hidden" aria-label="Candidate"></select>
+        <textarea id="reason" maxlength="1000" placeholder="Reason (required)"></textarea>
+        <button id="submit" type="button">Submit review</button>
+      </fieldset>
+      <p id="reviewMsg" class="small"></p>
+    </div>
+    <div class="card">
+      <h3>Audit chain <button id="verify" class="ghost" type="button">Verify</button> <button id="tamper" class="ghost danger" type="button">Tamper</button></h3>
+      <div id="chainStatus" class="small"></div>
+      <ol id="chain" class="chain"></ol>
+    </div>
+  </div>
+</section>
+
+<section id="results">
+  <h2>4 · What the experiments showed</h2>
+  <p class="muted">Top-1 hits on small diagnostic sets (historical, regression-only — these examples were inspected during development, so they are not a measure of real-world accuracy).</p>
+  <div class="card svgcard"><svg id="chart" viewBox="0 0 960 330" role="img" aria-label="Top-1 hits by method on three diagnostic sets"></svg></div>
+  <div class="grid3">
+    <div class="card stat"><span class="big">E5</span><span>kept as the main retriever: it handled cross-script names far better than spelling alone.</span></div>
+    <div class="card stat"><span class="big">−</span><span>an off-the-shelf reranker did <em>not</em> help — a negative result kept on record.</span></div>
+    <div class="card stat"><span class="big">4,500+</span><span>automated tests across the repository, including crash-recovery and security checks.</span></div>
+  </div>
+</section>
+
+<section id="arch">
+  <h2>5 · Architecture</h2>
+  <div class="card svgcard">
+    <svg viewBox="0 0 960 300" role="img" aria-label="CLI, API, reviewer UI and MCP all use one review service with storage, memory and audit">
+      <defs><marker id="b" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0L10,5L0,10z" class="mk"/></marker></defs>
+      <g><rect x="20" y="20" width="200" height="56" rx="10" class="b0"/><text x="120" y="54" class="t">Command line</text></g>
+      <g><rect x="260" y="20" width="200" height="56" rx="10" class="b0"/><text x="360" y="45" class="t">Web API</text><text x="360" y="64" class="s">FastAPI · per-key roles</text></g>
+      <g><rect x="500" y="20" width="200" height="56" rx="10" class="b0"/><text x="600" y="45" class="t">Reviewer UI</text><text x="600" y="64" class="s">Streamlit · own sign-in</text></g>
+      <g><rect x="740" y="20" width="200" height="56" rx="10" class="b0"/><text x="840" y="45" class="t">MCP server</text><text x="840" y="64" class="s">AI assistants · read-only review</text></g>
+      <path d="M120,76V118" class="ar2"/><path d="M360,76V118" class="ar2"/><path d="M600,76V118" class="ar2"/><path d="M840,76V118" class="ar2"/>
+      <rect x="20" y="120" width="920" height="64" rx="12" class="b1"/>
+      <text x="480" y="148" class="t">One versioned review service</text>
+      <text x="480" y="168" class="s">start case · pause for review · exactly-one accepted review · recovery · audit verification</text>
+      <path d="M200,184V218" class="ar2"/><path d="M480,184V218" class="ar2"/><path d="M760,184V218" class="ar2"/>
+      <g><rect x="60" y="220" width="280" height="60" rx="10" class="bk"/><text x="200" y="246" class="t">Retrieval</text><text x="200" y="265" class="s">RapidFuzz · E5 · hybrid index</text></g>
+      <g><rect x="360" y="220" width="240" height="60" rx="10" class="bk"/><text x="480" y="246" class="t">Ledger + checkpoints</text><text x="480" y="265" class="s">SQLite · hash-chained audit</text></g>
+      <g><rect x="620" y="220" width="280" height="60" rx="10" class="bk"/><text x="760" y="246" class="t">Reviewer memory</text><text x="760" y="265" class="s">exact record IDs only · never re-ranks</text></g>
+    </svg>
+  </div>
+</section>
+
+<footer>
+  <p>Source: <a href="https://github.com/raiha-siddiqui/Polyglot_watchlist">github.com/raiha-siddiqui/Polyglot_watchlist</a> · MIT License · Companion project: Follow the Money (payment tracing).</p>
+  <p class="muted small">This page is a simplified browser mock-up of the real Python system. Names are fictional. Not affiliated with any law-enforcement agency.</p>
+</footer>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
